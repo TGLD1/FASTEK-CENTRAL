@@ -12,6 +12,20 @@ Phase 1 — Fondations (en cours)
 - Cloudflare R2 (sauvegardes)
 - GitHub Actions (CI/CD)
 
+## Structure du dépôt
+src/
+api/          # Routes et handlers
+auth/         # Authentification installations & admin
+db/           # Accès base de données
+services/     # Logique métier
+utils/        # Utilitaires
+supabase/
+migrations/   # Migrations PostgreSQL
+functions/    # Edge Functions
+tests/          # Tests unitaires et d'intégration
+.github/
+workflows/    # CI/CD
+docs/           # Documentation technique locale
 ## Environnements
 - `develop` → développement
 - `staging` → validation

@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, staging ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (si package.json existe)
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+          else
+            echo "Pas encore de package.json - étape ignorée"
+          fi
+
+      - name: Lint (placeholder)
+        run: echo "Lint à configurer plus tard"
+
+      - name: Test (placeholder)
+        run: echo "Tests à configurer plus tard"
