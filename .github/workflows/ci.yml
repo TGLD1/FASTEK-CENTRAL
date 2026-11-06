@@ -1,33 +1,76 @@
-name: CI
+name: FASTEK CENTRAL CI
 
 on:
   push:
-    branches: [ main, develop, staging ]
+    branches:
+      - main
+      - develop
+      - staging
   pull_request:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
+      - staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fastek-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint-and-check:
+  quality-check:
+    name: TypeScript and Deno checks
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
         with:
-          node-version: '20'
+          deno-version: v2.x
 
-      - name: Install dependencies (si package.json existe)
+      - name: Display versions
         run: |
-          if [ -f package.json ]; then
-            npm ci
+          deno --version
+
+      - name: Check source files exist
+        id: sources
+        shell: bash
+        run: |
+          if find src supabase/functions tests \
+            -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) \
+            -print -quit | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Pas encore de package.json - étape ignorée"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No source files yet."
           fi
 
-      - name: Lint (placeholder)
-        run: echo "Lint à configurer plus tard"
+      - name: Format check
+        if: steps.sources.outputs.found == 'true'
+        run: deno fmt --check src supabase/functions tests
 
-      - name: Test (placeholder)
-        run: echo "Tests à configurer plus tard"
+      - name: Lint
+        if: steps.sources.outputs.found == 'true'
+        run: deno lint src supabase/functions tests
+
+      - name: Type check
+        if: steps.sources.outputs.found == 'true'
+        shell: bash
+        run: |
+          find src supabase/functions tests \
+            -type f \( -name '*.ts' -o -name '*.tsx' \) \
+            -print0 | xargs -0 -r deno check
+
+      - name: Verify migrations exist
+        run: |
+          test -f supabase/migrations/20261101120000_init_applications.sql
+          test -f supabase/migrations/20261106120000_installation_auth_tokens.sql
+          echo "Migration files found."
+
+      - name: CI completed
+        run: echo "FASTEK CENTRAL CI checks completed."
