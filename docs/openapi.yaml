@@ -1,0 +1,441 @@
+openapi: 3.1.0
+info:
+  title: FASTEK CENTRAL API
+  version: 1.0.0
+  description: Contrat REST JSON de FASTEK CENTRAL, première tranche consacrée aux installations et à leurs sessions.
+servers:
+  - url: https://central.fastek.example/api/v1
+    description: URL indicative — domaine de production non configuré
+tags:
+  - name: Installations
+    description: Enregistrement et consultation des installations
+  - name: Sessions
+    description: Renouvellement et révocation des sessions
+paths:
+  /installations/register:
+    post:
+      operationId: registerInstallation
+      summary: Enregistrer une installation
+      tags: [Installations]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationRequest'
+      responses:
+        '201':
+          description: Installation enregistrée et session créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /installations/token/refresh:
+    post:
+      operationId: refreshInstallationTokens
+      summary: Renouveler les jetons d'une installation
+      tags: [Sessions]
+      security: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Clé aléatoire unique pour cette opération de renouvellement.
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Nouvelle paire de jetons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /installations/session/revoke:
+    post:
+      operationId: revokeInstallationSession
+      summary: Révoquer sa propre session
+      tags: [Sessions]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session révoquée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /installations/me:
+    get:
+      operationId: getCurrentInstallation
+      summary: Consulter son installation
+      tags: [Installations]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Informations de l'installation authentifiée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /installations/heartbeat:
+    post:
+      operationId: sendInstallationHeartbeat
+      summary: Signaler une communication technique
+      tags: [Installations]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: Communication technique enregistrée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeartbeatResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Jeton d'accès propre à une installation, valable une heure.
+
+  schemas:
+    RegistrationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - app_id
+        - installation_id
+        - platform
+        - app_version
+        - sdk_version
+        - capabilities
+      properties:
+        app_id:
+          type: string
+          format: uuid
+        installation_id:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum: [android, python, javascript]
+        app_version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        sdk_version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        os_version:
+          type: string
+          maxLength: 64
+        device_model:
+          type: string
+          maxLength: 120
+        capabilities:
+          type: array
+          uniqueItems: true
+          maxItems: 50
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 32
+          maxLength: 512
+
+    TokenPair:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+        - refresh_expires_in
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          const: Bearer
+        expires_in:
+          type: integer
+          const: 3600
+        refresh_expires_in:
+          type: integer
+          const: 2592000
+
+    RegistrationData:
+      type: object
+      required: [installation_id, session_id, tokens, capabilities]
+      properties:
+        installation_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        tokens:
+          $ref: '#/components/schemas/TokenPair'
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    RegistrationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/RegistrationData'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    TokenData:
+      $ref: '#/components/schemas/TokenPair'
+
+    TokenResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/TokenData'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    InstallationData:
+      type: object
+      required:
+        - installation_id
+        - app_id
+        - platform
+        - status
+        - app_version
+        - sdk_version
+        - capabilities
+      properties:
+        installation_id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum: [android, python, javascript]
+        status:
+          type: string
+          enum: [active, inactive, suspended, revoked]
+        app_version:
+          type: string
+        sdk_version:
+          type: string
+        os_version:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        last_seen_at:
+          type: string
+          format: date-time
+
+    InstallationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: '#/components/schemas/InstallationData'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    RevokeResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [session_revoked]
+          properties:
+            session_revoked:
+              type: boolean
+              const: true
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    HeartbeatResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [last_seen_at, status]
+          properties:
+            last_seen_at:
+              type: string
+              format: date-time
+            status:
+              type: string
+              enum: [active, inactive]
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ResponseMeta:
+      type: object
+      required: [request_id]
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+
+    Error:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      required: [error, meta]
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+  responses:
+    BadRequest:
+      description: Requête invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentification absente, invalide, expirée ou révoquée
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Application ou installation non autorisée
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ressource inconnue
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflit d'état ou session déjà active
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unprocessable:
+      description: Données refusées par les règles métier
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Limite de débit atteinte
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Erreur interne
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
